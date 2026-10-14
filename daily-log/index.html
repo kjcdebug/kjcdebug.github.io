@@ -96,6 +96,12 @@
     try { location.replace(url); } catch (e) { a.classList.remove("hide"); }
   }
   go();
+  // If the code arrives after the page loads (some in-app browsers do this), try again.
+  window.addEventListener("hashchange", function () {
+    document.getElementById("broken").classList.add("hide");
+    document.getElementById("opening").classList.remove("hide");
+    go();
+  });
 </script>
 </body>
 </html>
