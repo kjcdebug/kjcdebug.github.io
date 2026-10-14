@@ -12,11 +12,16 @@
   main { max-width:460px; margin:0 auto; padding:48px 16px; text-align:center; font-size:17px; }
 </style>
 <script>
-  // Daily Log links whose "#" got encoded as "%23" land here as a missing page.
-  // If the address holds a Daily Log code, send it to the Daily Log page the normal way.
+  // Daily Log and Site Visit links whose "#" got encoded as "%23" land here as a missing page.
+  // If the address holds one of their codes, send it to the right page the normal way.
+  //   d1. = Daily Job Log   -> /daily-log/
+  //   s1. = Site Visit Report -> /site-visit/   (added 2026-10-14)
   (function () {
-    var m = decodeURIComponent(location.pathname + location.search + location.hash).match(/d1\.[A-Za-z0-9_-]+/);
-    if (m) location.replace("/daily-log/#" + m[0]);
+    var a = decodeURIComponent(location.pathname + location.search + location.hash);
+    var m = a.match(/d1\.[A-Za-z0-9_-]+/);
+    if (m) { location.replace("/daily-log/#" + m[0]); return; }
+    m = a.match(/s1\.[A-Za-z0-9_-]+/);
+    if (m) location.replace("/site-visit/#" + m[0]);
   })();
 </script>
 </head>
