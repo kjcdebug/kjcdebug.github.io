@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>IMC Daily Log</title>
+<style>
+  /* IMC red + charcoal, matching the plugin icon */
+  :root { --red:#A71E22; --charcoal:#383837; --bg:#ffffff; --text:#383837; --muted:#6b6b6a; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#151515; --text:#f2f2f2; --muted:#b5b5b5; } }
+  html, body { margin:0; background:var(--bg); color:var(--text); font-family: Arial, Helvetica, sans-serif; }
+  main { max-width:460px; margin:0 auto; padding:48px 16px; text-align:center; }
+  .badge { width:72px; height:72px; border-radius:16px; background:var(--red); display:inline-flex;
+           align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:22px; }
+  h1 { font-size:22px; margin:20px 0 8px; }
+  p { font-size:17px; line-height:1.45; color:var(--muted); margin:8px 0; }
+  a.btn { display:inline-block; margin-top:20px; padding:14px 22px; border-radius:10px; background:var(--red);
+          color:#fff; text-decoration:none; font-weight:700; font-size:17px; }
+  .hide { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <div class="badge" aria-hidden="true">IMC</div>
+
+  <!-- Normal case: shown for a split second while the form opens -->
+  <section id="opening">
+    <h1>Opening your Daily Job Log...</h1>
+    <p>Add your photos, check it over, then press Submit.</p>
+    <a id="manual" class="btn hide" href="#">Open my Daily Job Log</a>
+  </section>
+
+  <!-- Damaged or incomplete link: never open a half-filled form -->
+  <section id="broken" class="hide">
+    <h1>This link got damaged</h1>
+    <p>Go back to ChatGPT and say <strong>"rebuild my link"</strong>.</p>
+    <p>Your notes are still saved in that chat.</p>
+  </section>
+</main>
+
+<script>
+  // How it works:
+  // ChatGPT's link builder packs the log as JSON -> zlib-compressed -> base64url, and puts it
+  // after the "#". Browsers never send the part after "#" to a server, so the log never leaves
+  // the phone until the foreman submits the Jotform. zlib carries a checksum, so a mangled code
+  // fails to unpack and we show "damaged" instead of a half-blank form.
+  var JOTFORM = "https://form.jotform.com/70434232431141?";
+
+  function showBroken() {
+    document.getElementById("opening").classList.add("hide");
+    document.getElementById("broken").classList.remove("hide");
+  }
+
+  function fromBase64Url(s) {
+    s = s.replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    var bin = atob(s), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  async function inflate(bytes) {
+    // "deflate" = zlib format (with its Adler-32 checksum), which is what Python's zlib.compress makes
+    var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate"));
+    return await new Response(stream).text();
+  }
+
+  async function go() {
+    var url;
+    // Step 1: unpack. Any failure here means the code itself is bad -> "damaged" screen.
+    try {
+      // Normally the code is after "#". If something encoded the "#" as "%23", it arrives in
+      // the path instead (and this same file is served as 404.html), so look there too.
+      var code = decodeURIComponent(location.hash.slice(1)).trim();
+      if (code.indexOf("d1.") !== 0) {
+        var m = decodeURIComponent(location.pathname + location.search).match(/d1\.[A-Za-z0-9_-]+/);
+        code = m ? m[0] : "";
+      }
+      if (code.indexOf("d1.") !== 0) throw new Error("no code");   // version tag from the builder
+      var data = JSON.parse(await inflate(fromBase64Url(code.slice(3))));
+      if (!data || data.v !== 1 || typeof data.f !== "object") throw new Error("bad payload");
+      // Every value is encoded exactly once here, by the browser.
+      var parts = Object.keys(data.f).map(function (k) {
+        return k + "=" + encodeURIComponent(String(data.f[k]));
+      });
+      url = JOTFORM + parts.join("&");
+    } catch (e) {
+      showBroken();
+      return;
+    }
+    // Step 2: open the form. If the phone blocks the automatic jump, the button does it.
+    var a = document.getElementById("manual");
+    a.href = url;
+    setTimeout(function () { a.classList.remove("hide"); }, 1500);
+    try { location.replace(url); } catch (e) { a.classList.remove("hide"); }
+  }
+  go();
+</script>
+</body>
+</html>
